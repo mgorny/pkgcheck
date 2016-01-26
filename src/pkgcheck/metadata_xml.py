@@ -1,4 +1,6 @@
 import os
+import os.path
+import xml.etree.ElementTree
 
 from snakeoil import compatibility
 from snakeoil.demandload import demandload
@@ -30,6 +32,21 @@ demandload(
     'snakeoil:fileutils',
     'snakeoil.strings:pluralism',
 )
+
+
+projects_list = None
+
+
+def is_valid_project(email):
+    global projects_list
+    if projects_list is None:
+        projects_xml = '/home/mgorny/mirror/gentoo/metadata/projects.xml'
+        if not os.path.exists(projects_xml):
+            return True
+        mxml = xml.etree.ElementTree.parse(projects_xml)
+        projects_list = [x.find('email').text.strip() for x in mxml.getroot()]
+
+    return email in projects_list
 
 
 class base_MissingXml(base.Error):
@@ -298,6 +315,29 @@ class PkgMetadataXmlEmptyElement(MetadataXmlEmptyElement):
     threshold = base.package_feed
 
 
+class PkgMetadataXmlInvalidProject(base.Error):
+    """metadata.xml uses project with no entry in projects.xml"""
+
+    __slots__ = ("category", "package", "filename")
+    __attrs__ = __slots__
+    threshold = base.package_feed
+
+    def __init__(self, email, filename, category, package):
+        super(PkgMetadataXmlInvalidProject, self).__init__()
+        self.category = category
+        self.package = package
+        self.filename = filename
+        self.email = email
+
+    @property
+    def _label(self):
+        return "%s/%s" % (self.category, self.package)
+
+    @property
+    def short_desc(self):
+        return "%s %s <maintainer/> references invalid project '%s'" % (self._label, os.path.basename(self.filename), self.email)
+
+
 class base_check(base.Template):
     """Base class for metadata.xml scans."""
 
@@ -447,7 +487,21 @@ class PackageMetadataXmlCheck(base_check):
     known_results = (
         PkgBadlyFormedXml, PkgInvalidXml, PkgMissingMetadataXml,
         PkgMetadataXmlInvalidPkgRef, PkgMetadataXmlInvalidCatRef,
-        PkgMetadataXmlIndentation, PkgMetadataXmlEmptyElement)
+        PkgMetadataXmlIndentation, PkgMetadataXmlEmptyElement,
+        PkgMetadataXmlInvalidProject)
+
+    def check_doc(self, doc):
+        for r in super(PackageMetadataXmlCheck, self).check_doc(doc):
+            yield r
+
+        for el in doc.getroot():
+            if el.tag == 'maintainer':
+                m_type = el.get('type')
+                m_email = el.find('email').text.strip()
+                if m_type == 'project':
+                    if not is_valid_project(m_email):
+                        yield partial(PkgMetadataXmlInvalidProject,
+                                m_email)
 
     def feed(self, pkgs, reporter):
         # package with no ebuilds, skipping check
