@@ -6,6 +6,20 @@ from .. import base
 
 pkgcore_plugins = {
     'global_config': [{
+        'package-and-ver': basics.ConfigSectionFromStringDict({
+            'class': 'pkgcheck.base.Scope',
+            'scopes': ' '.join((str(base.package_scope),
+                                str(base.version_scope))),
+            }),
+        'non-repo': basics.ConfigSectionFromStringDict({
+            'class': 'pkgcheck.base.Scope',
+            'scopes': ' '.join((str(base.package_scope), str(base.category_scope),
+                                str(base.version_scope))),
+            }),
+        'repo-category': basics.ConfigSectionFromStringDict({
+            'class': 'pkgcheck.base.Scope',
+            'scopes': ' '.join((str(base.repository_scope), str(base.category_scope))),
+            }),
         'repo': basics.ConfigSectionFromStringDict({
             'class': 'pkgcheck.base.Scope',
             'scopes': str(base.repository_scope),
