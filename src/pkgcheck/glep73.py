@@ -80,6 +80,32 @@ class GLEP73SelfConflicting(base.Warning):
                 self.enforcement, self.flag)
 
 
+class GLEP73SelfConflicting(base.Warning):
+    """A REQUIRED_USE constraint that has both flag and !flag
+    in a single condition. Such a condition can never be true
+    and our algorithms do not take it into consideration."""
+
+    __slots__ = ("category", "package", "version", "condition",
+                 "enforcement", "flag", "profiles")
+    threshold = base.versioned_feed
+
+    def __init__(self, pkg, condition, enforcement, flag, profiles):
+        super(GLEP73SelfConflicting, self).__init__()
+        self._store_cpv(pkg)
+        self.condition = condition
+        self.enforcement = enforcement
+        self.flag = flag
+        self.profiles = profiles
+
+    @property
+    def short_desc(self):
+        return ('REQUIRED_USE has impossible self-conflicting condition: ' +
+                '[%s] => [%s] can never be true since it requires [%s] ' +
+                'to be true and false simultaneously') % (
+                ' && '.join('%s' % x for x in self.condition),
+                self.enforcement, self.flag)
+
+
 class GLEP73Conflict(base.Warning):
     """REQUIRED_USE constraints that can request the user to enable
     and disable the same flag simultaneously. This is a major issue
