@@ -67,6 +67,9 @@ class HttpsAvailableCheck(base.Template):
         self.regex = re.compile(r'.*(\bhttp://(%s)(\s|["\'/]|$))' % r'|'.join(self.SITES))
 
     def feed(self, entry, reporter):
+        # skip for now, too much noise
+        return
+
         pkg, lines = entry
         links = defaultdict(list)
 
@@ -162,6 +165,9 @@ class AbsoluteSymlinkCheck(base.Template):
         self.regex = re.compile(r'^\s*dosym\s+["\']?(/(%s)\S*)' % r'|'.join(self.DIRS))
 
     def feed(self, entry, reporter):
+        # skip for now, too much noise
+        return
+
         pkg, lines = entry
         for lineno, line in enumerate(lines):
             if not line:
