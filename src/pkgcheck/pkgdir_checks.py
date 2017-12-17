@@ -144,6 +144,24 @@ class SizeViolation(Warning):
             self.filename, sizeof_fmt(self.size))
 
 
+class DirectorySizeViolation(Warning):
+    """ $FILESDIR directory is too large (current limit is 32k)."""
+
+    __slots__ = ("category", "package", "size")
+
+    threshold = package_feed
+
+    def __init__(self, pkg, size):
+        super(DirectorySizeViolation, self).__init__()
+        self._store_cp(pkg)
+        self.size = size
+
+    @property
+    def short_desc(self):
+        return 'files directory exceeds 32k in size; %s total' % (
+            sizeof_fmt(self.size),)
+
+
 class Glep31Violation(Error):
     """File doesn't abide by glep31 requirements."""
 
@@ -199,6 +217,7 @@ class PkgDirReport(Template):
     known_results = (
         DuplicateFiles, EmptyFile, ExecutableFile, SizeViolation,
         Glep31Violation, InvalidUtf8, MismatchedPN, InvalidPN,
+        DirectorySizeViolation,
     )
 
     # TODO: put some 'preferred algorithms by purpose' into snakeoil?
@@ -247,6 +266,7 @@ class PkgDirReport(Template):
             return
         unprocessed_dirs = deque(["files"])
         files_by_size = defaultdict(list)
+        total_size = 0
         while unprocessed_dirs:
             cwd = unprocessed_dirs.pop()
             for fn in listdir(pjoin(base, cwd)):
@@ -265,10 +285,14 @@ class PkgDirReport(Template):
                             reporter.add_report(EmptyFile(pkg, pjoin(cwd, fn)))
                         else:
                             files_by_size[st.st_size].append(pjoin(cwd, fn))
+                            total_size += st.st_size
                             if st.st_size > 20480:
                                 reporter.add_report(SizeViolation(pkg, pjoin(cwd, fn), st.st_size))
                         if any(True for x in fn if x not in allowed_filename_chars_set):
                             reporter.add_report(Glep31Violation(pkg, pjoin(cwd, fn)))
+
+        if total_size > 32768:
+            reporter.add_report(DirectorySizeViolation(pkg, total_size))
 
         files_by_digest = defaultdict(list)
         for size, files in files_by_size.iteritems():
