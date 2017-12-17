@@ -192,13 +192,62 @@ class TestSizeViolation(PkgDirReportTest):
                 f.seek(size)
                 f.write('\0')
         r = self.assertReports(self.check, [pkg])
-        self.assertLen(r, 2)
+        self.assertLen(r, 3)
         self.assertIsInstance(r[0], pkgdir_checks.SizeViolation)
         self.assertIsInstance(r[1], pkgdir_checks.SizeViolation)
+        self.assertIsInstance(r[2], pkgdir_checks.DirectorySizeViolation)
         self.assertEqual(
-            tuple(sorted((x.filename, x.size) for x in r)),
+            tuple(sorted((x.filename, x.size) for x in r[:2])),
             (('files/massive', 1024*100+1), ('files/over', 1024*20+1))
         )
+
+
+class TestDirectorySizeViolation(PkgDirReportTest):
+    """Check DirectorySizeViolation results."""
+
+    def test_it(self):
+        # files under the 32k limit
+        pkg = self.mk_pkg()
+        for name, size in (('a', 1024*10),
+                           ('b', 1024*20)):
+            with open(pjoin(self.filesdir, name), 'w') as f:
+                f.seek(size)
+                f.write('\0')
+        r = self.assertReport(self.check, [pkg])
+        self.assertIsInstance(r, pkgdir_checks.SizeViolation)
+
+        # file just at the limit
+        pkg = self.mk_pkg()
+        for name, size in (('a', 1024*32-1),):
+            with open(pjoin(self.filesdir, name), 'w') as f:
+                f.seek(size)
+                f.write('\0')
+        r = self.assertReport(self.check, [pkg])
+        self.assertIsInstance(r, pkgdir_checks.SizeViolation)
+
+        # single file one byte over the 20k limit
+        pkg = self.mk_pkg()
+        with open(pjoin(self.filesdir, 'over'), 'w') as f:
+            f.seek(1024*32)
+            f.write('\0')
+        r = self.assertReports(self.check, [pkg])
+        self.assertLen(r, 2)
+        self.assertIsInstance(r[0], pkgdir_checks.SizeViolation)
+        self.assertIsInstance(r[1], pkgdir_checks.DirectorySizeViolation)
+        self.assertEqual(r[1].size, 1024*32+1)
+
+        # mix of files
+        pkg = self.mk_pkg()
+        for name, size in (('most', 1024*16-1),
+                           ('some', 1024*10-1),
+                           ('more', 1024*6-1),
+                           ('over', 0)):
+            with open(pjoin(self.filesdir, name), 'w') as f:
+                f.seek(size)
+                f.write('\0')
+        r = self.assertReport(self.check, [pkg])
+        self.assertIsInstance(r, pkgdir_checks.DirectorySizeViolation)
+        self.assertEqual(r.size, 1024*32+1)
 
 
 class TestExecutableFile(PkgDirReportTest):
