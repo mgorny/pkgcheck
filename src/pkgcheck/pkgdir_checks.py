@@ -291,7 +291,7 @@ class PkgDirReport(Template):
                         if any(True for x in fn if x not in allowed_filename_chars_set):
                             reporter.add_report(Glep31Violation(pkg, pjoin(cwd, fn)))
 
-        if total_size > 65536:
+        if total_size > 32768:
             reporter.add_report(DirectorySizeViolation(pkg, total_size))
 
         files_by_digest = defaultdict(list)
