@@ -106,7 +106,8 @@ class QueryCacheAddon(base.Template):
 class profile_data(object):
 
     def __init__(self, profile_name, key, provides, vfilter,
-                 iuse_effective, use, pkg_use, masked_use, forced_use, lookup_cache, insoluble):
+                 iuse_effective, use, pkg_use, masked_use, forced_use, lookup_cache, insoluble,
+                 status, deprecated):
         self.key = key
         self.name = profile_name
         self.provides_repo = provides
@@ -119,6 +120,8 @@ class profile_data(object):
         self.cache = lookup_cache
         self.insoluble = insoluble
         self.visible = vfilter.match
+        self.status = status
+        self.deprecated = deprecated
 
     def identify_use(self, pkg, known_flags):
         # note we're trying to be *really* careful about not creating
@@ -226,6 +229,9 @@ class ProfileAddon(base.Addon):
         # temporarily.
         cached_profiles = []
 
+        profile_status_map = dict(chain.from_iterable(
+            profiles_obj.arch_profiles.itervalues()))
+
         arch_profiles = defaultdict(list)
         for profile_path in profile_paths:
             try:
@@ -242,7 +248,8 @@ class ProfileAddon(base.Addon):
             if p.arch is None:
                 parser.error(
                     "profile %r lacks arch settings, unable to use it" % (p.path,))
-            arch_profiles[p.arch].append((profile_path, p))
+            arch_profiles[p.arch].append((profile_path, p,
+                profile_status_map.get(profile_path)))
 
         namespace.arch_profiles = arch_profiles
 
@@ -280,7 +287,7 @@ class ProfileAddon(base.Addon):
 
             profile_filters.update({stable_key: [], unstable_key: []})
 
-            for profile_name, profile in options.arch_profiles.get(k, []):
+            for profile_name, profile, profile_status in options.arch_profiles.get(k, []):
                 vfilter = domain.generate_filter(profile.masks, profile.unmasks)
 
                 immutable_flags = profile.masked_use.clone(unfreeze=True)
@@ -329,7 +336,9 @@ class ProfileAddon(base.Addon):
                     profile.pkg_use,
                     stable_immutable_flags, stable_enabled_flags,
                     stable_cache,
-                    ProtectedSet(unstable_insoluble)))
+                    ProtectedSet(unstable_insoluble),
+                    profile_status,
+                    profile.deprecated is not None))
 
                 profile_filters[unstable_key].append(profile_data(
                     profile_name, unstable_key,
@@ -340,7 +349,9 @@ class ProfileAddon(base.Addon):
                     profile.pkg_use,
                     immutable_flags, enabled_flags,
                     ProtectedSet(stable_cache),
-                    unstable_insoluble))
+                    unstable_insoluble,
+                    profile_status,
+                    profile.deprecated is not None))
 
             self.keywords_filter[stable_key] = stable_r
             self.keywords_filter[unstable_key] = packages.PackageRestriction(
