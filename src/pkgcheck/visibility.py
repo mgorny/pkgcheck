@@ -162,22 +162,29 @@ class NonsolvableDeps(base.Error):
     """No potential solution for a depset attribute."""
 
     __slots__ = ("category", "package", "version", "attr", "profile",
-                 "keyword", "potentials")
+                 "keyword", "potentials", "profile_class",
+                 "profile_deprecated")
 
     threshold = base.versioned_feed
 
-    def __init__(self, pkg, attr, keyword, profile, horked):
+    def __init__(self, pkg, attr, keyword, profile, horked, profile_status,
+                 profile_deprecated):
         super(NonsolvableDeps, self).__init__()
         self._store_cpv(pkg)
         self.attr = attr
         self.profile = profile
         self.keyword = keyword
         self.potentials = tuple(str(x) for x in stable_unique(horked))
+        self.profile_status = profile_status
+        self.profile_deprecated = profile_deprecated
 
     @property
     def short_desc(self):
-        return "nonsolvable depset(%s) keyword(%s) profile (%s): " \
-               "solutions: [ %s ]" % (self.attr, self.keyword, self.profile,
+        return "nonsolvable depset(%s) keyword(%s) %s%s profile (%s): " \
+               "solutions: [ %s ]" % (self.attr, self.keyword,
+                                      'deprecated ' if self.profile_deprecated else '',
+                                      self.profile_status or 'custom',
+                                      self.profile,
                                       ', '.join(self.potentials))
 
 
@@ -313,4 +320,5 @@ class VisibilityReport(base.Template):
                         failures.update(required)
             if failures:
                 reporter.add_report(NonsolvableDeps(
-                    pkg, attr, profile.key, profile.name, list(failures)))
+                    pkg, attr, profile.key, profile.name, list(failures),
+                    profile.status, profile.deprecated))
