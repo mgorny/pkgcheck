@@ -35,23 +35,23 @@ class GLEP73Immutability(base.Error):
     unsolvable requests."""
 
     __slots__ = ("category", "package", "version", "condition",
-                 "enforcement", "profile")
+                 "enforcement", "profiles")
     threshold = base.versioned_feed
 
-    def __init__(self, pkg, condition, enforcement, profile):
+    def __init__(self, pkg, condition, enforcement, profiles):
         super(GLEP73Immutability, self).__init__()
         self._store_cpv(pkg)
         self.condition = condition
         self.enforcement = enforcement
-        self.profile = profile
+        self.profiles = profiles
 
     @property
     def short_desc(self):
         return ('REQUIRED_USE violates immutability rules: ' +
                 '[%s] requires [%s] while the opposite value is ' +
-                'enforced by use.force/mask (in profile: %s)') % (
+                'enforced by use.force/mask (in profiles: %s)') % (
                 ' && '.join('%s' % x for x in self.condition),
-                self.enforcement, self.profile)
+                self.enforcement, self.profiles)
 
 
 class GLEP73SelfConflicting(base.Warning):
@@ -60,16 +60,16 @@ class GLEP73SelfConflicting(base.Warning):
     and our algorithms do not take it into consideration."""
 
     __slots__ = ("category", "package", "version", "condition",
-                 "enforcement", "flag", "profile")
+                 "enforcement", "flag", "profiles")
     threshold = base.versioned_feed
 
-    def __init__(self, pkg, condition, enforcement, flag, profile):
+    def __init__(self, pkg, condition, enforcement, flag, profiles):
         super(GLEP73SelfConflicting, self).__init__()
         self._store_cpv(pkg)
         self.condition = condition
         self.enforcement = enforcement
         self.flag = flag
-        self.profile = profile
+        self.profiles = profiles
 
     @property
     def short_desc(self):
@@ -114,17 +114,17 @@ class GLEP73Conflict(base.Warning):
     messages for regular users."""
 
     __slots__ = ("category", "package", "version", "ci", "ei",
-                 "cj", "ej", "profile")
+                 "cj", "ej", "profiles")
     threshold = base.versioned_feed
 
-    def __init__(self, pkg, ci, ei, cj, ej, profile):
+    def __init__(self, pkg, ci, ei, cj, ej, profiles):
         super(GLEP73Conflict, self).__init__()
         self._store_cpv(pkg)
         self.ci = ci
         self.ei = ei
         self.cj = cj
         self.ej = ej
-        self.profile = profile
+        self.profiles = profiles
 
     @property
     def short_desc(self):
@@ -141,17 +141,17 @@ class GLEP73BackAlteration(base.Warning):
     iterations in order to enforce the constraints."""
 
     __slots__ = ("category", "package", "version", "ci", "ei",
-                 "cj", "ej", "profile")
+                 "cj", "ej", "profiles")
     threshold = base.versioned_feed
 
-    def __init__(self, pkg, ci, ei, cj, ej, profile):
+    def __init__(self, pkg, ci, ei, cj, ej, profiles):
         super(GLEP73BackAlteration, self).__init__()
         self._store_cpv(pkg)
         self.ci = ci
         self.ei = ei
         self.cj = cj
         self.ej = ej
-        self.profile = profile
+        self.profiles = profiles
 
     @property
     def short_desc(self):

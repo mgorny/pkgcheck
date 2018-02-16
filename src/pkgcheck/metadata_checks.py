@@ -230,10 +230,12 @@ class RequiredUSEMetadataReport(base.Template):
             for node in failures.iterkeys():
                 reporter.add_report(RequiredUseDefaults(pkg, node))
 
+        # collapse errors that occur within multiple profiles
         for report_data in glep73_failures.itervalues():
+            all_profiles = []
             for report, keyword, profile in report_data:
-                reporter.add_report(report(pkg=pkg,
-                    profile=(keyword, profile)))
+                all_profiles.append((keyword, profile))
+            reporter.add_report(report(pkg=pkg, profiles=all_profiles))
 
 
 class UnusedLocalFlags(base.Warning):
