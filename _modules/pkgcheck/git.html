@@ -1,0 +1,678 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pkgcheck.git &#8212; pkgcheck master documentation</title>
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">pkgcheck master documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">pkgcheck.git</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pkgcheck.git</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Git specific support and addon.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">shlex</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">UserDict</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">AbstractContextManager</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span> <span class="nn">pathspec</span> <span class="kn">import</span> <span class="n">PathSpec</span>
+<span class="kn">from</span> <span class="nn">pkgcore.ebuild</span> <span class="kn">import</span> <span class="n">cpv</span>
+<span class="kn">from</span> <span class="nn">pkgcore.ebuild.atom</span> <span class="kn">import</span> <span class="n">MalformedAtom</span>
+<span class="kn">from</span> <span class="nn">pkgcore.ebuild.atom</span> <span class="kn">import</span> <span class="n">atom</span> <span class="k">as</span> <span class="n">atom_cls</span>
+<span class="kn">from</span> <span class="nn">pkgcore.repository</span> <span class="kn">import</span> <span class="n">multiplex</span>
+<span class="kn">from</span> <span class="nn">pkgcore.repository.util</span> <span class="kn">import</span> <span class="n">SimpleTree</span>
+<span class="kn">from</span> <span class="nn">pkgcore.restrictions</span> <span class="kn">import</span> <span class="n">packages</span><span class="p">,</span> <span class="n">values</span>
+<span class="kn">from</span> <span class="nn">snakeoil.cli.exceptions</span> <span class="kn">import</span> <span class="n">UserException</span>
+<span class="kn">from</span> <span class="nn">snakeoil.demandload</span> <span class="kn">import</span> <span class="n">demand_compile_regexp</span>
+<span class="kn">from</span> <span class="nn">snakeoil.fileutils</span> <span class="kn">import</span> <span class="n">AtomicWriteFile</span>
+<span class="kn">from</span> <span class="nn">snakeoil.iterables</span> <span class="kn">import</span> <span class="n">partition</span>
+<span class="kn">from</span> <span class="nn">snakeoil.klass</span> <span class="kn">import</span> <span class="n">jit_attr</span>
+<span class="kn">from</span> <span class="nn">snakeoil.osutils</span> <span class="kn">import</span> <span class="n">pjoin</span>
+<span class="kn">from</span> <span class="nn">snakeoil.process</span> <span class="kn">import</span> <span class="n">CommandNotFound</span><span class="p">,</span> <span class="n">find_binary</span>
+<span class="kn">from</span> <span class="nn">snakeoil.process.spawn</span> <span class="kn">import</span> <span class="n">spawn_get_output</span>
+<span class="kn">from</span> <span class="nn">snakeoil.strings</span> <span class="kn">import</span> <span class="n">pluralism</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">base</span><span class="p">,</span> <span class="n">caches</span><span class="p">,</span> <span class="n">objects</span>
+<span class="kn">from</span> <span class="nn">.checks</span> <span class="kn">import</span> <span class="n">GitCheck</span>
+<span class="kn">from</span> <span class="nn">.log</span> <span class="kn">import</span> <span class="n">logger</span>
+
+<span class="c1"># hacky path regexes for git log parsing, proper validation is handled later</span>
+<span class="n">_ebuild_path_regex_raw</span> <span class="o">=</span> <span class="s1">&#39;([^/]+)/([^/]+)/([^/]+)</span><span class="se">\\</span><span class="s1">.ebuild&#39;</span>
+<span class="n">_ebuild_path_regex</span> <span class="o">=</span> <span class="s1">&#39;(?P&lt;category&gt;[^/]+)/(?P&lt;PN&gt;[^/]+)/(?P&lt;P&gt;[^/]+)</span><span class="se">\\</span><span class="s1">.ebuild&#39;</span>
+<span class="n">demand_compile_regexp</span><span class="p">(</span><span class="s1">&#39;ebuild_ADM_regex&#39;</span><span class="p">,</span> <span class="sa">fr</span><span class="s1">&#39;^(?P&lt;status&gt;[ADM])\t</span><span class="si">{</span><span class="n">_ebuild_path_regex</span><span class="si">}</span><span class="s1">$&#39;</span><span class="p">)</span>
+<span class="n">demand_compile_regexp</span><span class="p">(</span><span class="s1">&#39;ebuild_R_regex&#39;</span><span class="p">,</span> <span class="sa">fr</span><span class="s1">&#39;^(?P&lt;status&gt;R)\d+\t</span><span class="si">{</span><span class="n">_ebuild_path_regex</span><span class="si">}</span><span class="s1">\t</span><span class="si">{</span><span class="n">_ebuild_path_regex_raw</span><span class="si">}</span><span class="s1">$&#39;</span><span class="p">)</span>
+<span class="n">demand_compile_regexp</span><span class="p">(</span><span class="s1">&#39;eclass_regex&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;^eclass/(?P&lt;eclass&gt;\S+)\.eclass$&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="GitCommit"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitCommit">[docs]</a><span class="k">class</span> <span class="nc">GitCommit</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Git commit objects.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">hash</span><span class="p">,</span> <span class="n">commit_date</span><span class="p">,</span> <span class="n">author</span><span class="p">,</span> <span class="n">committer</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hash</span> <span class="o">=</span> <span class="nb">hash</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commit_date</span> <span class="o">=</span> <span class="n">commit_date</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">author</span> <span class="o">=</span> <span class="n">author</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">committer</span> <span class="o">=</span> <span class="n">committer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hash</span>
+
+    <span class="k">def</span> <span class="fm">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hash</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">hash</span></div>
+
+
+<div class="viewcode-block" id="GitPkgChange"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitPkgChange">[docs]</a><span class="k">class</span> <span class="nc">GitPkgChange</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Git package change objects.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">atom</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">commit</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">atom</span> <span class="o">=</span> <span class="n">atom</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">status</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commit</span> <span class="o">=</span> <span class="n">commit</span></div>
+
+
+<div class="viewcode-block" id="ParsedGitRepo"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.ParsedGitRepo">[docs]</a><span class="k">class</span> <span class="nc">ParsedGitRepo</span><span class="p">(</span><span class="n">UserDict</span><span class="p">,</span> <span class="n">caches</span><span class="o">.</span><span class="n">Cache</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Parse repository git logs.&quot;&quot;&quot;</span>
+
+    <span class="c1"># git command to run on the targeted repo</span>
+    <span class="n">_git_cmd</span> <span class="o">=</span> <span class="s1">&#39;git log --name-status --date=short --diff-filter=ARMD&#39;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">repo</span><span class="p">,</span> <span class="n">commit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">location</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">location</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">GitAddon</span><span class="o">.</span><span class="n">cache</span>
+
+        <span class="k">if</span> <span class="n">commit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">commit</span> <span class="o">=</span> <span class="s1">&#39;origin/HEAD..master&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pkg_changes</span><span class="p">(</span><span class="n">commit</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">commit</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">commit</span> <span class="o">=</span> <span class="n">commit</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pkg_changes</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ParsedGitRepo.update"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.ParsedGitRepo.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">commit</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update an existing repo starting at a given commit hash.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pkg_changes</span><span class="p">(</span><span class="n">commit</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">commit</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commit</span> <span class="o">=</span> <span class="n">commit</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_file_line</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Pull atoms and status from file change lines.&quot;&quot;&quot;</span>
+        <span class="c1"># match initially added ebuilds</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">ebuild_ADM_regex</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span>
+            <span class="n">category</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;category&#39;</span><span class="p">)</span>
+            <span class="n">pkg</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;P&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">atom_cls</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;=</span><span class="si">{</span><span class="n">category</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">pkg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">),</span> <span class="n">status</span>
+            <span class="k">except</span> <span class="n">MalformedAtom</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="c1"># match renamed ebuilds</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">ebuild_R_regex</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span>
+            <span class="n">category</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;category&#39;</span><span class="p">)</span>
+            <span class="n">pkg</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;P&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">atom_cls</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;=</span><span class="si">{</span><span class="n">category</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">pkg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">),</span> <span class="n">status</span>
+            <span class="k">except</span> <span class="n">MalformedAtom</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ParsedGitRepo.parse_git_log"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.ParsedGitRepo.parse_git_log">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">parse_git_log</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">repo_path</span><span class="p">,</span> <span class="n">commit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pkgs</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Parse git log output.&quot;&quot;&quot;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_git_cmd</span><span class="p">)</span>
+        <span class="c1"># custom git log format, see the &quot;PRETTY FORMATS&quot; section of the git</span>
+        <span class="c1"># log man page for details</span>
+        <span class="n">format_lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;# BEGIN COMMIT&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;%h&#39;</span><span class="p">,</span> <span class="c1"># abbreviated commit hash</span>
+            <span class="s1">&#39;</span><span class="si">%c</span><span class="s1">d&#39;</span><span class="p">,</span> <span class="c1"># commit date</span>
+            <span class="s1">&#39;</span><span class="si">%a</span><span class="s1">n &lt;</span><span class="si">%a</span><span class="s1">e&gt;&#39;</span><span class="p">,</span> <span class="c1"># Author Name &lt;author@email.com&gt;</span>
+            <span class="s1">&#39;</span><span class="si">%c</span><span class="s1">n &lt;</span><span class="si">%c</span><span class="s1">e&gt;&#39;</span><span class="p">,</span> <span class="c1"># Committer Name &lt;committer@email.com&gt;</span>
+            <span class="s1">&#39;%B&#39;</span><span class="p">,</span> <span class="c1"># commit message</span>
+            <span class="s1">&#39;# END MESSAGE BODY&#39;</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="n">format_str</span> <span class="o">=</span> <span class="s1">&#39;%n&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">format_lines</span><span class="p">)</span>
+        <span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;--pretty=tformat:</span><span class="si">{</span><span class="n">format_str</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">commit</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;..&#39;</span> <span class="ow">in</span> <span class="n">commit</span><span class="p">:</span>
+                <span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">commit</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">commit</span><span class="si">}</span><span class="s1">..origin/HEAD&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;origin/HEAD&#39;</span><span class="p">)</span>
+
+        <span class="n">git_log</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span>
+            <span class="n">cmd</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">repo_path</span><span class="p">)</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">git_log</span><span class="o">.</span><span class="n">poll</span><span class="p">():</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;skipping git checks: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">error</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">with</span> <span class="n">base</span><span class="o">.</span><span class="n">ProgressManager</span><span class="p">(</span><span class="n">verbosity</span><span class="o">=</span><span class="n">verbosity</span><span class="p">)</span> <span class="k">as</span> <span class="n">progress</span><span class="p">:</span>
+            <span class="k">while</span> <span class="n">line</span><span class="p">:</span>
+                <span class="nb">hash</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">commit_date</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">author</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="s1">&#39;replace&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">committer</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="s1">&#39;replace&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+                <span class="n">message</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="n">line</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="s1">&#39;replace&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">line</span> <span class="o">==</span> <span class="s1">&#39;# END MESSAGE BODY&#39;</span><span class="p">:</span>
+                        <span class="c1"># drop trailing newline if it exists</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">message</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                            <span class="n">message</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                        <span class="k">break</span>
+                    <span class="n">message</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+                <span class="c1"># update progress output</span>
+                <span class="n">progress</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">hash</span><span class="si">}</span><span class="s1"> commit #</span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s1">, </span><span class="si">{</span><span class="n">commit_date</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="n">commit</span> <span class="o">=</span> <span class="n">GitCommit</span><span class="p">(</span><span class="nb">hash</span><span class="p">,</span> <span class="n">commit_date</span><span class="p">,</span> <span class="n">author</span><span class="p">,</span> <span class="n">committer</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">pkgs</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="n">commit</span>
+
+                <span class="c1"># file changes</span>
+                <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="n">line</span> <span class="o">=</span> <span class="n">git_log</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">line</span> <span class="o">==</span> <span class="s1">&#39;# BEGIN COMMIT</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="k">if</span> <span class="n">pkgs</span><span class="p">:</span>
+                        <span class="n">parsed</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_parse_file_line</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+                        <span class="k">if</span> <span class="n">parsed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">atom</span><span class="p">,</span> <span class="n">status</span> <span class="o">=</span> <span class="n">parsed</span>
+                            <span class="k">yield</span> <span class="n">GitPkgChange</span><span class="p">(</span><span class="n">atom</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">commit</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_pkg_changes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">local</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Parse package changes from git log output.&quot;&quot;&quot;</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_git_log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="n">pkgs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">atom</span> <span class="o">=</span> <span class="n">pkg</span><span class="o">.</span><span class="n">atom</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">atom</span><span class="p">,</span> <span class="n">pkg</span><span class="o">.</span><span class="n">status</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">atom</span><span class="o">.</span><span class="n">category</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span>
+                    <span class="n">atom</span><span class="o">.</span><span class="n">package</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">status</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
+                        <span class="n">atom</span><span class="o">.</span><span class="n">fullver</span><span class="p">,</span>
+                        <span class="n">pkg</span><span class="o">.</span><span class="n">commit</span><span class="o">.</span><span class="n">commit_date</span><span class="p">,</span>
+                        <span class="n">pkg</span><span class="o">.</span><span class="n">commit</span><span class="o">.</span><span class="n">hash</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">local</span> <span class="k">else</span> <span class="n">pkg</span><span class="o">.</span><span class="n">commit</span><span class="p">,</span>
+                    <span class="p">))</span></div>
+
+
+<span class="k">class</span> <span class="nc">_GitCommitPkg</span><span class="p">(</span><span class="n">cpv</span><span class="o">.</span><span class="n">VersionedCPV</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Fake packages encapsulating commits parsed from git log.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">category</span><span class="p">,</span> <span class="n">package</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="n">date</span><span class="p">,</span> <span class="n">commit</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">category</span><span class="p">,</span> <span class="n">package</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+
+        <span class="c1"># add additional attrs</span>
+        <span class="n">sf</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span>
+        <span class="n">sf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="n">date</span><span class="p">)</span>
+        <span class="n">sf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;status&#39;</span><span class="p">,</span> <span class="n">status</span><span class="p">)</span>
+        <span class="n">sf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;commit&#39;</span><span class="p">,</span> <span class="n">commit</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">_HistoricalRepo</span><span class="p">(</span><span class="n">SimpleTree</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Repository encapsulating historical git data.&quot;&quot;&quot;</span>
+
+    <span class="c1"># selected pkg status filter</span>
+    <span class="n">_status_filter</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;M&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;pkg_klass&#39;</span><span class="p">,</span> <span class="n">_GitCommitPkg</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_versions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cp</span><span class="p">):</span>
+        <span class="n">versions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">status</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpv_dict</span><span class="p">[</span><span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">]][</span><span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">status</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_status_filter</span><span class="p">:</span>
+                <span class="n">versions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">status</span><span class="p">,</span> <span class="n">data</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">versions</span>
+
+    <span class="k">def</span> <span class="nf">_internal_gen_candidates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">candidates</span><span class="p">,</span> <span class="n">sorter</span><span class="p">,</span> <span class="n">raw_pkg_cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">cp</span> <span class="ow">in</span> <span class="n">sorter</span><span class="p">(</span><span class="n">candidates</span><span class="p">):</span>
+            <span class="k">yield from</span> <span class="n">sorter</span><span class="p">(</span>
+                <span class="n">raw_pkg_cls</span><span class="p">(</span><span class="n">cp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">status</span><span class="p">,</span> <span class="o">*</span><span class="n">commit</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">status</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">versions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cp</span><span class="p">,</span> <span class="p">())</span>
+                <span class="k">for</span> <span class="n">commit</span> <span class="ow">in</span> <span class="n">data</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="GitChangedRepo"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitChangedRepo">[docs]</a><span class="k">class</span> <span class="nc">GitChangedRepo</span><span class="p">(</span><span class="n">_HistoricalRepo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Historical git repo consisting of the latest changed packages.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="GitModifiedRepo"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitModifiedRepo">[docs]</a><span class="k">class</span> <span class="nc">GitModifiedRepo</span><span class="p">(</span><span class="n">_HistoricalRepo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Historical git repo consisting of the latest modified packages.&quot;&quot;&quot;</span>
+
+    <span class="n">_status_filter</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;M&#39;</span><span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="GitAddedRepo"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddedRepo">[docs]</a><span class="k">class</span> <span class="nc">GitAddedRepo</span><span class="p">(</span><span class="n">_HistoricalRepo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Historical git repo consisting of added packages.&quot;&quot;&quot;</span>
+
+    <span class="n">_status_filter</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="GitRemovedRepo"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitRemovedRepo">[docs]</a><span class="k">class</span> <span class="nc">GitRemovedRepo</span><span class="p">(</span><span class="n">_HistoricalRepo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Historical git repo consisting of removed packages.&quot;&quot;&quot;</span>
+
+    <span class="n">_status_filter</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;D&#39;</span><span class="p">}</span></div>
+
+
+<span class="k">class</span> <span class="nc">_ScanCommits</span><span class="p">(</span><span class="n">argparse</span><span class="o">.</span><span class="n">Action</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Argparse action that enables git commit checks.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">option_string</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">namespace</span><span class="o">.</span><span class="n">forced_checks</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">name</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">objects</span><span class="o">.</span><span class="n">CHECKS</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">GitCheck</span><span class="p">))</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dest</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="GitStash"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitStash">[docs]</a><span class="k">class</span> <span class="nc">GitStash</span><span class="p">(</span><span class="n">AbstractContextManager</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Context manager for stashing untracked or modified/uncommitted files.</span>
+
+<span class="sd">    This assumes that no git actions are performed on the repo while a scan is</span>
+<span class="sd">    underway otherwise `git stash` usage may cause issues.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="n">repo</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parser</span> <span class="o">=</span> <span class="n">parser</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">repo</span> <span class="o">=</span> <span class="n">repo</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stashed</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># check for untracked or modified/uncommitted files</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">,</span> <span class="s1">&#39;ls-files&#39;</span><span class="p">,</span> <span class="s1">&#39;-mo&#39;</span><span class="p">,</span> <span class="s1">&#39;--exclude-standard&#39;</span><span class="p">],</span>
+            <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span>
+            <span class="n">cwd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">stdout</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># stash all existing untracked or modified/uncommitted files</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">,</span> <span class="s1">&#39;stash&#39;</span><span class="p">,</span> <span class="s1">&#39;push&#39;</span><span class="p">,</span> <span class="s1">&#39;-u&#39;</span><span class="p">,</span> <span class="s1">&#39;-m&#39;</span><span class="p">,</span> <span class="s1">&#39;pkgcheck scan --commits&#39;</span><span class="p">],</span>
+            <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+            <span class="n">cwd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;git failed stashing files: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_stashed</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_exc_type</span><span class="p">,</span> <span class="n">_exc_value</span><span class="p">,</span> <span class="n">_traceback</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stashed</span><span class="p">:</span>
+            <span class="c1"># apply previously stashed files back to the working tree</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+                <span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">,</span> <span class="s1">&#39;stash&#39;</span><span class="p">,</span> <span class="s1">&#39;pop&#39;</span><span class="p">],</span>
+                <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">DEVNULL</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                <span class="n">cwd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">error</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;git failed applying stash: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GitAddon"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon">[docs]</a><span class="k">class</span> <span class="nc">GitAddon</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">Addon</span><span class="p">,</span> <span class="n">caches</span><span class="o">.</span><span class="n">CachedAddon</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Git repo support for various checks.</span>
+
+<span class="sd">    Pkgcheck can create virtual package repos from a given git repo&#39;s history</span>
+<span class="sd">    in order to provide more info for checks relating to stable requests,</span>
+<span class="sd">    outdated blockers, or local commits. These virtual repos are cached and</span>
+<span class="sd">    updated every run if new commits are detected.</span>
+
+<span class="sd">    Git repos must have a supported config in order to work properly.</span>
+<span class="sd">    Specifically, pkgcheck assumes that both origin and master branches exist</span>
+<span class="sd">    and relate to the upstream and local development states, respectively.</span>
+
+<span class="sd">    Additionally, the origin/HEAD ref must exist. If it doesn&#39;t, running ``git</span>
+<span class="sd">    fetch origin`` should create it. Otherwise, using ``git remote set-head</span>
+<span class="sd">    origin master`` or similar will also create the reference.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># cache registry</span>
+    <span class="n">cache</span> <span class="o">=</span> <span class="n">caches</span><span class="o">.</span><span class="n">CacheData</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s1">&#39;git&#39;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="s1">&#39;git.pickle&#39;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GitAddon.mangle_argparser"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.mangle_argparser">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">mangle_argparser</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">):</span>
+        <span class="n">group</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">&#39;git&#39;</span><span class="p">,</span> <span class="n">docs</span><span class="o">=</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+        <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s1">&#39;--commits&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="n">_ScanCommits</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">,</span>
+            <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;COMMIT&#39;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="s1">&#39;origin&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;determine scan targets from local git repo commits&quot;</span><span class="p">,</span>
+            <span class="n">docs</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">                For a local git repo, pkgcheck will determine targets to scan</span>
+<span class="s2">                from the committed changes compared to a given reference that</span>
+<span class="s2">                defaults to the repo&#39;s origin.</span>
+
+<span class="s2">                For example, to scan all the packages that have been changed in</span>
+<span class="s2">                the current branch compared to the branch named &#39;old&#39; use</span>
+<span class="s2">                ``pkgcheck scan --commits old``. For two separate branches</span>
+<span class="s2">                named &#39;old&#39; and &#39;new&#39; use ``pkgcheck scan --commits old..new``.</span>
+
+<span class="s2">                Note that will also enable eclass-specific checks if it</span>
+<span class="s2">                determines any commits have been made to eclasses.</span>
+<span class="s2">            &quot;&quot;&quot;</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_committed_eclass</span><span class="p">(</span><span class="n">committed</span><span class="p">,</span> <span class="n">eclass</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Stub method for matching eclasses against commits.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">eclass</span> <span class="ow">in</span> <span class="n">committed</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_pkg_atoms</span><span class="p">(</span><span class="n">paths</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Filter package atoms from commit paths.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">atom_cls</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="mi">2</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]))</span>
+            <span class="k">except</span> <span class="n">MalformedAtom</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+<div class="viewcode-block" id="GitAddon.check_args"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.check_args">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">check_args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="n">namespace</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">namespace</span><span class="o">.</span><span class="n">commits</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">namespace</span><span class="o">.</span><span class="n">targets</span><span class="p">:</span>
+                <span class="n">targets</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">namespace</span><span class="o">.</span><span class="n">targets</span><span class="p">)</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">pluralism</span><span class="p">(</span><span class="n">namespace</span><span class="o">.</span><span class="n">targets</span><span class="p">)</span>
+                <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;--commits is mutually exclusive with target</span><span class="si">{</span><span class="n">s</span><span class="si">}</span><span class="s1">: </span><span class="si">{</span><span class="n">targets</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="n">ref</span> <span class="o">=</span> <span class="n">namespace</span><span class="o">.</span><span class="n">commits</span>
+            <span class="n">repo</span> <span class="o">=</span> <span class="n">namespace</span><span class="o">.</span><span class="n">target_repo</span>
+            <span class="n">targets</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">repo</span><span class="o">.</span><span class="n">category_dirs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">pjoin</span><span class="p">(</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="s1">&#39;eclass&#39;</span><span class="p">)):</span>
+                <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;eclass&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+                    <span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">,</span> <span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="s1">&#39;--cached&#39;</span><span class="p">,</span> <span class="n">ref</span><span class="p">,</span> <span class="s1">&#39;--name-only&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">targets</span><span class="p">,</span>
+                    <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                    <span class="n">cwd</span><span class="o">=</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;git not available to determine targets for --commits&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">error</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;failed running git: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">p</span><span class="o">.</span><span class="n">stdout</span><span class="p">:</span>
+                <span class="c1"># no changes exist, exit early</span>
+                <span class="n">parser</span><span class="o">.</span><span class="n">exit</span><span class="p">()</span>
+
+            <span class="n">pkgs</span><span class="p">,</span> <span class="n">eclasses</span> <span class="o">=</span> <span class="n">partition</span><span class="p">(</span>
+                <span class="n">p</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">splitlines</span><span class="p">(),</span> <span class="n">predicate</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;eclass/&#39;</span><span class="p">))</span>
+            <span class="n">pkgs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_pkg_atoms</span><span class="p">(</span><span class="n">pkgs</span><span class="p">))</span>
+            <span class="n">eclasses</span> <span class="o">=</span> <span class="nb">filter</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="p">(</span><span class="n">eclass_regex</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eclasses</span><span class="p">))</span>
+            <span class="n">eclasses</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;eclass&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eclasses</span><span class="p">)</span>
+
+            <span class="n">restrictions</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">pkgs</span><span class="p">:</span>
+                <span class="n">restrict</span> <span class="o">=</span> <span class="n">packages</span><span class="o">.</span><span class="n">OrRestriction</span><span class="p">(</span><span class="o">*</span><span class="n">pkgs</span><span class="p">)</span>
+                <span class="n">restrictions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">base</span><span class="o">.</span><span class="n">package_scope</span><span class="p">,</span> <span class="n">restrict</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">eclasses</span><span class="p">:</span>
+                <span class="n">func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_committed_eclass</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">eclasses</span><span class="p">))</span>
+                <span class="n">restrict</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">AnyMatch</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">FunctionRestriction</span><span class="p">(</span><span class="n">func</span><span class="p">))</span>
+                <span class="n">restrictions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">base</span><span class="o">.</span><span class="n">eclass_scope</span><span class="p">,</span> <span class="n">restrict</span><span class="p">))</span>
+
+            <span class="c1"># no pkgs or eclasses to check, exit early</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">restrictions</span><span class="p">:</span>
+                <span class="n">parser</span><span class="o">.</span><span class="n">exit</span><span class="p">()</span>
+
+            <span class="n">namespace</span><span class="o">.</span><span class="n">contexts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">GitStash</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">repo</span><span class="p">))</span>
+            <span class="n">namespace</span><span class="o">.</span><span class="n">restrictions</span> <span class="o">=</span> <span class="n">restrictions</span></div>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="c1"># disable git support if git isn&#39;t installed</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">]:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">find_binary</span><span class="p">(</span><span class="s1">&#39;git&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">CommandNotFound</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># mapping of repo locations to their corresponding git repo caches</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_repos</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@jit_attr</span>
+    <span class="k">def</span> <span class="nf">gitignore</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Load a repo&#39;s .gitignore and .git/info/exclude files for path matching.&quot;&quot;&quot;</span>
+        <span class="n">patterns</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;.gitignore&#39;</span><span class="p">,</span> <span class="s1">&#39;.git/info/exclude&#39;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">pjoin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">target_repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="n">path</span><span class="p">))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">patterns</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">except</span> <span class="ne">IOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;failed reading </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s1">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">PathSpec</span><span class="o">.</span><span class="n">from_lines</span><span class="p">(</span><span class="s1">&#39;gitwildmatch&#39;</span><span class="p">,</span> <span class="n">patterns</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GitAddon.gitignored"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.gitignored">[docs]</a>    <span class="k">def</span> <span class="nf">gitignored</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Determine if a given path in a repository is matched by .gitignore settings.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">target_repo</span><span class="o">.</span><span class="n">location</span><span class="p">):</span>
+            <span class="n">repo_prefix_len</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">target_repo</span><span class="o">.</span><span class="n">location</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">path</span><span class="p">[</span><span class="n">repo_prefix_len</span><span class="p">:]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">gitignore</span><span class="o">.</span><span class="n">match_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="GitAddon.get_commit_hash"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.get_commit_hash">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_commit_hash</span><span class="p">(</span><span class="n">repo_location</span><span class="p">,</span> <span class="n">commit</span><span class="o">=</span><span class="s1">&#39;origin/HEAD&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieve a git repo&#39;s commit hash for a specific commit object.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">pjoin</span><span class="p">(</span><span class="n">repo_location</span><span class="p">,</span> <span class="s1">&#39;.git&#39;</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span>
+        <span class="n">ret</span><span class="p">,</span> <span class="n">out</span> <span class="o">=</span> <span class="n">spawn_get_output</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">,</span> <span class="s1">&#39;rev-parse&#39;</span><span class="p">,</span> <span class="n">commit</span><span class="p">],</span> <span class="n">cwd</span><span class="o">=</span><span class="n">repo_location</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;failed retrieving </span><span class="si">{</span><span class="n">commit</span><span class="si">}</span><span class="s1"> commit hash &#39;</span>
+                <span class="sa">f</span><span class="s1">&#39;for git repo: </span><span class="si">{</span><span class="n">repo_location</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="GitAddon.update_cache"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.update_cache">[docs]</a>    <span class="k">def</span> <span class="nf">update_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update related cache and push updates to disk.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># running from scan subcommand</span>
+            <span class="n">repos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">target_repo</span><span class="o">.</span><span class="n">trees</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># running from cache subcommand</span>
+            <span class="n">repos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">ebuild_repos</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">repo</span> <span class="ow">in</span> <span class="n">repos</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">commit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_commit_hash</span><span class="p">(</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="c1"># initialize cache file location</span>
+                <span class="n">cache_file</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_file</span><span class="p">(</span><span class="n">repo</span><span class="p">)</span>
+
+                <span class="n">git_repo</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">cache_repo</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">force</span><span class="p">:</span>
+                    <span class="c1"># try loading cached, historical repo data</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">cache_file</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                            <span class="n">git_repo</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">git_repo</span><span class="o">.</span><span class="n">version</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">version</span><span class="p">:</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;forcing git repo cache regen due to outdated version&#39;</span><span class="p">)</span>
+                            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">cache_file</span><span class="p">)</span>
+                            <span class="n">git_repo</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                    <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">EOFError</span><span class="p">,</span> <span class="ne">ImportError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;forcing git repo cache regen: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+                        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">cache_file</span><span class="p">)</span>
+                        <span class="n">git_repo</span> <span class="o">=</span> <span class="kc">None</span>
+
+                <span class="k">if</span> <span class="p">(</span><span class="n">git_repo</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+                        <span class="n">repo</span><span class="o">.</span><span class="n">location</span> <span class="o">==</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">git_repo</span><span class="p">,</span> <span class="s1">&#39;location&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="n">commit</span> <span class="o">!=</span> <span class="n">git_repo</span><span class="o">.</span><span class="n">commit</span><span class="p">:</span>
+                        <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="o">=</span> <span class="n">git_repo</span><span class="o">.</span><span class="n">commit</span><span class="p">[:</span><span class="mi">13</span><span class="p">],</span> <span class="n">commit</span><span class="p">[:</span><span class="mi">13</span><span class="p">]</span>
+                        <span class="nb">print</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s1">&#39;updating </span><span class="si">{</span><span class="n">repo</span><span class="si">}</span><span class="s1"> git repo cache: </span><span class="si">{</span><span class="n">old</span><span class="si">}</span><span class="s1"> -&gt; </span><span class="si">{</span><span class="n">new</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                            <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span>
+                        <span class="p">)</span>
+                        <span class="n">git_repo</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">commit</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">verbosity</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">cache_repo</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;creating </span><span class="si">{</span><span class="n">repo</span><span class="si">}</span><span class="s1"> git repo cache: </span><span class="si">{</span><span class="n">commit</span><span class="p">[:</span><span class="mi">13</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                        <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">git_repo</span> <span class="o">=</span> <span class="n">ParsedGitRepo</span><span class="p">(</span><span class="n">repo</span><span class="p">,</span> <span class="n">commit</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">verbosity</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">git_repo</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_cached_repos</span><span class="p">[</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">]</span> <span class="o">=</span> <span class="n">git_repo</span>
+                    <span class="c1"># push repo to disk if it was created or updated</span>
+                    <span class="k">if</span> <span class="n">cache_repo</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">cache_file</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                            <span class="n">f</span> <span class="o">=</span> <span class="n">AtomicWriteFile</span><span class="p">(</span><span class="n">cache_file</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">git_repo</span><span class="p">))</span>
+                            <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                        <span class="k">except</span> <span class="ne">IOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;failed dumping git pkg repo: </span><span class="si">{</span><span class="n">cache_file</span><span class="si">!r}</span><span class="s1">: </span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">strerror</span><span class="si">}</span><span class="s1">&#39;</span>
+                            <span class="k">raise</span> <span class="n">UserException</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="GitAddon.cached_repo"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.cached_repo">[docs]</a>    <span class="k">def</span> <span class="nf">cached_repo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">repo_cls</span><span class="p">,</span> <span class="n">target_repo</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">cached_repo</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">target_repo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">target_repo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">target_repo</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">]:</span>
+            <span class="n">git_repos</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">repo</span> <span class="ow">in</span> <span class="n">target_repo</span><span class="o">.</span><span class="n">trees</span><span class="p">:</span>
+                <span class="n">git_repo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_repos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="c1"># only enable repo queries if history was found, e.g. a</span>
+                <span class="c1"># shallow clone with a depth of 1 won&#39;t have any history</span>
+                <span class="k">if</span> <span class="n">git_repo</span><span class="p">:</span>
+                    <span class="n">git_repos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">repo_cls</span><span class="p">(</span><span class="n">git_repo</span><span class="p">,</span> <span class="n">repo_id</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">repo_id</span><span class="si">}</span><span class="s1">-history&#39;</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;skipping git checks for </span><span class="si">%s</span><span class="s1"> repo&#39;</span><span class="p">,</span> <span class="n">repo</span><span class="p">)</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">git_repos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">cached_repo</span> <span class="o">=</span> <span class="n">multiplex</span><span class="o">.</span><span class="n">tree</span><span class="p">(</span><span class="o">*</span><span class="n">git_repos</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">git_repos</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">cached_repo</span> <span class="o">=</span> <span class="n">git_repos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">cached_repo</span></div>
+
+<div class="viewcode-block" id="GitAddon.commits_repo"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.commits_repo">[docs]</a>    <span class="k">def</span> <span class="nf">commits_repo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">repo_cls</span><span class="p">,</span> <span class="n">target_repo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="n">options</span> <span class="k">if</span> <span class="n">options</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span>
+        <span class="k">if</span> <span class="n">target_repo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">target_repo</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">target_repo</span>
+
+        <span class="n">git_repo</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">repo_id</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">target_repo</span><span class="o">.</span><span class="n">repo_id</span><span class="si">}</span><span class="s1">-commits&#39;</span>
+
+        <span class="k">if</span> <span class="n">options</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">]:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">origin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_commit_hash</span><span class="p">(</span><span class="n">target_repo</span><span class="o">.</span><span class="n">location</span><span class="p">)</span>
+                <span class="n">master</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_commit_hash</span><span class="p">(</span><span class="n">target_repo</span><span class="o">.</span><span class="n">location</span><span class="p">,</span> <span class="n">commit</span><span class="o">=</span><span class="s1">&#39;master&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">origin</span> <span class="o">!=</span> <span class="n">master</span><span class="p">:</span>
+                    <span class="n">git_repo</span> <span class="o">=</span> <span class="n">ParsedGitRepo</span><span class="p">(</span><span class="n">target_repo</span><span class="p">,</span> <span class="n">local</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;skipping git commit checks: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">repo_cls</span><span class="p">(</span><span class="n">git_repo</span><span class="p">,</span> <span class="n">repo_id</span><span class="o">=</span><span class="n">repo_id</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="GitAddon.commits"><a class="viewcode-back" href="../../api/pkgcheck.git.html#pkgcheck.git.GitAddon.commits">[docs]</a>    <span class="k">def</span> <span class="nf">commits</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">repo</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">location</span> <span class="k">if</span> <span class="n">repo</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">target_repo</span><span class="o">.</span><span class="n">location</span>
+        <span class="n">commits</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(())</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;git&#39;</span><span class="p">]:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">origin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_commit_hash</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+                <span class="n">master</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_commit_hash</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">commit</span><span class="o">=</span><span class="s1">&#39;master&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">origin</span> <span class="o">!=</span> <span class="n">master</span><span class="p">:</span>
+                    <span class="n">commits</span> <span class="o">=</span> <span class="n">ParsedGitRepo</span><span class="o">.</span><span class="n">parse_git_log</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">commit</span><span class="o">=</span><span class="s1">&#39;origin/HEAD..master&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;skipping git commit checks: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">commits</span></div></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">pkgcheck master documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">pkgcheck.git</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2006-2019, pkgcheck contributors.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.3.0.
+    </div>
+  </body>
+</html>

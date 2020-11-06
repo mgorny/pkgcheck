@@ -1,0 +1,244 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pkgcheck.git module &#8212; pkgcheck master documentation</title>
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">pkgcheck master documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">pkgcheck.git module</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-pkgcheck.git">
+<span id="pkgcheck-git-module"></span><h1>pkgcheck.git module<a class="headerlink" href="#module-pkgcheck.git" title="Permalink to this headline">¶</a></h1>
+<p>Git specific support and addon.</p>
+<dl class="py class">
+<dt id="pkgcheck.git.GitAddedRepo">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitAddedRepo</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddedRepo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddedRepo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.git._HistoricalRepo</span></code></p>
+<p>Historical git repo consisting of added packages.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.GitAddon">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitAddon</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pkgcheck.base.html#pkgcheck.base.Addon" title="pkgcheck.base.Addon"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.base.Addon</span></code></a>, <a class="reference internal" href="pkgcheck.caches.html#pkgcheck.caches.CachedAddon" title="pkgcheck.caches.CachedAddon"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.caches.CachedAddon</span></code></a></p>
+<p>Git repo support for various checks.</p>
+<p>Pkgcheck can create virtual package repos from a given git repo’s history
+in order to provide more info for checks relating to stable requests,
+outdated blockers, or local commits. These virtual repos are cached and
+updated every run if new commits are detected.</p>
+<p>Git repos must have a supported config in order to work properly.
+Specifically, pkgcheck assumes that both origin and master branches exist
+and relate to the upstream and local development states, respectively.</p>
+<p>Additionally, the origin/HEAD ref must exist. If it doesn’t, running <code class="docutils literal notranslate"><span class="pre">git</span>
+<span class="pre">fetch</span> <span class="pre">origin</span></code> should create it. Otherwise, using <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">remote</span> <span class="pre">set-head</span>
+<span class="pre">origin</span> <span class="pre">master</span></code> or similar will also create the reference.</p>
+<dl class="py attribute">
+<dt id="pkgcheck.git.GitAddon.cache">
+<code class="sig-name descname">cache</code><em class="property"> = CacheData(type='git', file='git.pickle', version=4)</em><a class="headerlink" href="#pkgcheck.git.GitAddon.cache" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.cached_repo">
+<code class="sig-name descname">cached_repo</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">repo_cls</span></em>, <em class="sig-param"><span class="n">target_repo</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.cached_repo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.cached_repo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.check_args">
+<em class="property">classmethod </em><code class="sig-name descname">check_args</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parser</span></em>, <em class="sig-param"><span class="n">namespace</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.check_args"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.check_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>Postprocess the argparse values.</p>
+<p>Should raise C{argparse.ArgumentError} on failure.</p>
+<p>This is only called for addons that are enabled, but before
+they are instantiated.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.commits">
+<code class="sig-name descname">commits</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">repo</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.commits"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.commits" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.commits_repo">
+<code class="sig-name descname">commits_repo</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">repo_cls</span></em>, <em class="sig-param"><span class="n">target_repo</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">options</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.commits_repo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.commits_repo" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.get_commit_hash">
+<em class="property">static </em><code class="sig-name descname">get_commit_hash</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">repo_location</span></em>, <em class="sig-param"><span class="n">commit</span><span class="o">=</span><span class="default_value">'origin/HEAD'</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.get_commit_hash"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.get_commit_hash" title="Permalink to this definition">¶</a></dt>
+<dd><p>Retrieve a git repo’s commit hash for a specific commit object.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.git.GitAddon.gitignore">
+<code class="sig-name descname">gitignore</code><a class="headerlink" href="#pkgcheck.git.GitAddon.gitignore" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load a repo’s .gitignore and .git/info/exclude files for path matching.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.gitignored">
+<code class="sig-name descname">gitignored</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">path</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.gitignored"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.gitignored" title="Permalink to this definition">¶</a></dt>
+<dd><p>Determine if a given path in a repository is matched by .gitignore settings.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.mangle_argparser">
+<em class="property">classmethod </em><code class="sig-name descname">mangle_argparser</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parser</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.mangle_argparser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.mangle_argparser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add extra options and/or groups to the argparser.</p>
+<p>This hook is always triggered, even if the checker is not
+activated (because it runs before the commandline is parsed).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>parser</strong> – an C{argparse.ArgumentParser} instance.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.GitAddon.update_cache">
+<code class="sig-name descname">update_cache</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">force</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitAddon.update_cache"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitAddon.update_cache" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update related cache and push updates to disk.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.GitChangedRepo">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitChangedRepo</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitChangedRepo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitChangedRepo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.git._HistoricalRepo</span></code></p>
+<p>Historical git repo consisting of the latest changed packages.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.GitCommit">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitCommit</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">hash</span></em>, <em class="sig-param"><span class="n">commit_date</span></em>, <em class="sig-param"><span class="n">author</span></em>, <em class="sig-param"><span class="n">committer</span></em>, <em class="sig-param"><span class="n">message</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitCommit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitCommit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Git commit objects.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.GitModifiedRepo">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitModifiedRepo</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitModifiedRepo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitModifiedRepo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.git._HistoricalRepo</span></code></p>
+<p>Historical git repo consisting of the latest modified packages.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.GitPkgChange">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitPkgChange</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">atom</span></em>, <em class="sig-param"><span class="n">status</span></em>, <em class="sig-param"><span class="n">commit</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitPkgChange"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitPkgChange" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Git package change objects.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.GitRemovedRepo">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitRemovedRepo</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitRemovedRepo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitRemovedRepo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.git._HistoricalRepo</span></code></p>
+<p>Historical git repo consisting of removed packages.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.GitStash">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">GitStash</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">parser</span></em>, <em class="sig-param"><span class="n">repo</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#GitStash"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.GitStash" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">contextlib.AbstractContextManager</span></code></p>
+<p>Context manager for stashing untracked or modified/uncommitted files.</p>
+<p>This assumes that no git actions are performed on the repo while a scan is
+underway otherwise <cite>git stash</cite> usage may cause issues.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.git.ParsedGitRepo">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.git.</code><code class="sig-name descname">ParsedGitRepo</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">repo</span></em>, <em class="sig-param"><span class="n">commit</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#ParsedGitRepo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.ParsedGitRepo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">collections.UserDict</span></code>, <a class="reference internal" href="pkgcheck.caches.html#pkgcheck.caches.Cache" title="pkgcheck.caches.Cache"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.caches.Cache</span></code></a></p>
+<p>Parse repository git logs.</p>
+<dl class="py method">
+<dt id="pkgcheck.git.ParsedGitRepo.parse_git_log">
+<em class="property">classmethod </em><code class="sig-name descname">parse_git_log</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">repo_path</span></em>, <em class="sig-param"><span class="n">commit</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">pkgs</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">- 1</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#ParsedGitRepo.parse_git_log"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.ParsedGitRepo.parse_git_log" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parse git log output.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.git.ParsedGitRepo.update">
+<code class="sig-name descname">update</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">commit</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/git.html#ParsedGitRepo.update"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.git.ParsedGitRepo.update" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update an existing repo starting at a given commit hash.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/api/pkgcheck.git.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">pkgcheck master documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">pkgcheck.git module</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2006-2019, pkgcheck contributors.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.3.0.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+pkgcheck.plugins package
+========================
+
+Module contents
+---------------
+
+.. automodule:: pkgcheck.plugins
+   :members:
+   :undoc-members:
+   :show-inheritance:

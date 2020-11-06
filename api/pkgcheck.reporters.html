@@ -1,0 +1,312 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pkgcheck.reporters module &#8212; pkgcheck master documentation</title>
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">pkgcheck master documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">pkgcheck.reporters module</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-pkgcheck.reporters">
+<span id="pkgcheck-reporters-module"></span><h1>pkgcheck.reporters module<a class="headerlink" href="#module-pkgcheck.reporters" title="Permalink to this headline">¶</a></h1>
+<p>Basic result reporters.</p>
+<dl class="py class">
+<dt id="pkgcheck.reporters.BinaryPickleStream">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">BinaryPickleStream</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">out</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">keywords</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">exit_keywords</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#BinaryPickleStream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.BinaryPickleStream" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.PickleStream" title="pkgcheck.reporters.PickleStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.PickleStream</span></code></a></p>
+<p>Dump a binary pickle stream using the highest pickling protocol.</p>
+<p>Unlike <a href="#id1"><span class="problematic" id="id2">`PickleStream`_</span></a> which uses the most compatible pickling protocol
+available, this uses the newest version so it won’t be compatible with
+older versions of Python.</p>
+<p>For more details of the stream, see <a href="#id3"><span class="problematic" id="id4">`PickleStream`_</span></a>.</p>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.BinaryPickleStream.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -1002</em><a class="headerlink" href="#pkgcheck.reporters.BinaryPickleStream.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.BinaryPickleStream.protocol">
+<code class="sig-name descname">protocol</code><em class="property"> = -1</em><a class="headerlink" href="#pkgcheck.reporters.BinaryPickleStream.protocol" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.CsvReporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">CsvReporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#CsvReporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.CsvReporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Comma-separated value reporter, convenient for shell processing.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">,,,</span><span class="s2">&quot;global USE flag &#39;big-endian&#39; is a potential local, used by 1 package: dev-java/icedtea-bin&quot;</span>
+<span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="p">,</span><span class="n">portage</span><span class="p">,</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">,</span><span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="o">.</span><span class="n">ebuild</span> <span class="n">has</span> <span class="n">whitespace</span> <span class="ow">in</span> <span class="n">indentation</span> <span class="n">on</span> <span class="n">line</span> <span class="mi">169</span>
+<span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="p">,</span><span class="n">portage</span><span class="p">,</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">,</span><span class="s2">&quot;rdepend  ppc-macos: unsolvable default-darwin/macos/10.4, solutions: [ &gt;=app-misc/pax-utils-0.1.13 ]&quot;</span>
+<span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="p">,</span><span class="n">portage</span><span class="p">,</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">,</span><span class="s2">&quot;no change in 75 days, keywords [ ~x86-fbsd ]&quot;</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.CsvReporter.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -1001</em><a class="headerlink" href="#pkgcheck.reporters.CsvReporter.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt id="pkgcheck.reporters.DeserializationError">
+<em class="property">exception </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">DeserializationError</code><a class="reference internal" href="../_modules/pkgcheck/reporters.html#DeserializationError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.DeserializationError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Exception occurred while deserializing a data stream.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.FancyReporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">FancyReporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#FancyReporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.FancyReporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Colored output grouped by result scope.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span>
+  <span class="n">WrongIndentFound</span><span class="p">:</span> <span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="o">.</span><span class="n">ebuild</span> <span class="n">has</span> <span class="n">whitespace</span> <span class="ow">in</span> <span class="n">indentation</span> <span class="n">on</span> <span class="n">line</span> <span class="mi">169</span>
+  <span class="n">NonsolvableDeps</span><span class="p">:</span> <span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">:</span> <span class="n">rdepend</span>  <span class="n">ppc</span><span class="o">-</span><span class="n">macos</span><span class="p">:</span> <span class="n">unsolvable</span> <span class="n">default</span><span class="o">-</span><span class="n">darwin</span><span class="o">/</span><span class="n">macos</span><span class="o">/</span><span class="mf">10.4</span><span class="p">,</span> <span class="n">solutions</span><span class="p">:</span> <span class="p">[</span> <span class="o">&gt;=</span><span class="n">app</span><span class="o">-</span><span class="n">misc</span><span class="o">/</span><span class="n">pax</span><span class="o">-</span><span class="n">utils</span><span class="o">-</span><span class="mf">0.1</span><span class="o">.</span><span class="mi">13</span> <span class="p">]</span>
+  <span class="n">StableRequest</span><span class="p">:</span> <span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">:</span> <span class="n">no</span> <span class="n">change</span> <span class="ow">in</span> <span class="mi">75</span> <span class="n">days</span><span class="p">,</span> <span class="n">keywords</span> <span class="p">[</span> <span class="o">~</span><span class="n">x86</span> <span class="p">]</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.FancyReporter.priority">
+<code class="sig-name descname">priority</code><em class="property"> = 1</em><a class="headerlink" href="#pkgcheck.reporters.FancyReporter.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.FormatReporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">FormatReporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">format_str</span></em>, <em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#FormatReporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.FormatReporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Custom format string reporter.</p>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.FormatReporter.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -1001</em><a class="headerlink" href="#pkgcheck.reporters.FormatReporter.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.JsonReporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">JsonReporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#JsonReporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.JsonReporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Feed of newline-delimited JSON records.</p>
+<p>Note that the format is newline-delimited JSON with each line being related
+to a separate report. To merge the objects together a tool such as jq can
+be leveraged similar to the following:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">jq</span> <span class="o">-</span><span class="n">c</span> <span class="o">-</span><span class="n">s</span> <span class="s1">&#39;reduce.[]as$x(</span><span class="si">{}</span><span class="s1">;.*$x)&#39;</span> <span class="n">orig</span><span class="o">.</span><span class="n">json</span> <span class="o">&gt;</span> <span class="n">new</span><span class="o">.</span><span class="n">json</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.JsonReporter.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -1000</em><a class="headerlink" href="#pkgcheck.reporters.JsonReporter.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.JsonStream">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">JsonStream</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">out</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">keywords</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">exit_keywords</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#JsonStream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.JsonStream" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Generate a stream of result objects serialized in JSON.</p>
+<dl class="py method">
+<dt id="pkgcheck.reporters.JsonStream.from_iter">
+<em class="property">classmethod </em><code class="sig-name descname">from_iter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">iterable</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#JsonStream.from_iter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.JsonStream.from_iter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deserialize results from a given iterable.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.JsonStream.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -1001</em><a class="headerlink" href="#pkgcheck.reporters.JsonStream.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt id="pkgcheck.reporters.JsonStream.to_json">
+<em class="property">static </em><code class="sig-name descname">to_json</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">obj</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#JsonStream.to_json"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.JsonStream.to_json" title="Permalink to this definition">¶</a></dt>
+<dd><p>Serialize results and other objects to JSON.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.NullReporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">NullReporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">out</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">keywords</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">exit_keywords</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#NullReporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.NullReporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Reporter used for timing tests; no output.</p>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.NullReporter.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -10000000</em><a class="headerlink" href="#pkgcheck.reporters.NullReporter.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.PickleStream">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">PickleStream</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">out</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">keywords</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">exit_keywords</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#PickleStream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.PickleStream" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Generate a stream of pickled objects using the original pickling protocol.</p>
+<p>For each specific target for checks, a header is pickled detailing the
+checks used, possible results, and search criteria.</p>
+<p>This reporter uses the original “human-readable” protocol that is backwards
+compatible with earlier versions of Python.</p>
+<dl class="py method">
+<dt id="pkgcheck.reporters.PickleStream.from_iter">
+<em class="property">static </em><code class="sig-name descname">from_iter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">iterable</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#PickleStream.from_iter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.PickleStream.from_iter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deserialize results from a given iterable.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.PickleStream.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -1001</em><a class="headerlink" href="#pkgcheck.reporters.PickleStream.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.PickleStream.protocol">
+<code class="sig-name descname">protocol</code><em class="property"> = 0</em><a class="headerlink" href="#pkgcheck.reporters.PickleStream.protocol" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.Reporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">Reporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">out</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">keywords</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">exit_keywords</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#Reporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.Reporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Generic result reporter.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.StrReporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">StrReporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#StrReporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.StrReporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Simple string reporter, pkgcheck-0.1 behaviour.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">:</span> <span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="o">.</span><span class="n">ebuild</span> <span class="n">has</span> <span class="n">whitespace</span> <span class="ow">in</span> <span class="n">indentation</span> <span class="n">on</span> <span class="n">line</span> <span class="mi">169</span>
+<span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">:</span> <span class="n">rdepend</span>  <span class="n">ppc</span><span class="o">-</span><span class="n">macos</span><span class="p">:</span> <span class="n">unsolvable</span> <span class="n">default</span><span class="o">-</span><span class="n">darwin</span><span class="o">/</span><span class="n">macos</span><span class="o">/</span><span class="mf">10.4</span><span class="p">,</span> <span class="n">solutions</span><span class="p">:</span> <span class="p">[</span> <span class="o">&gt;=</span><span class="n">app</span><span class="o">-</span><span class="n">misc</span><span class="o">/</span><span class="n">pax</span><span class="o">-</span><span class="n">utils</span><span class="o">-</span><span class="mf">0.1</span><span class="o">.</span><span class="mi">13</span> <span class="p">]</span>
+<span class="n">sys</span><span class="o">-</span><span class="n">apps</span><span class="o">/</span><span class="n">portage</span><span class="o">-</span><span class="mf">2.1</span><span class="o">-</span><span class="n">r2</span><span class="p">:</span> <span class="n">no</span> <span class="n">change</span> <span class="ow">in</span> <span class="mi">75</span> <span class="n">days</span><span class="p">,</span> <span class="n">keywords</span> <span class="p">[</span> <span class="o">~</span><span class="n">x86</span><span class="o">-</span><span class="n">fbsd</span> <span class="p">]</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.StrReporter.priority">
+<code class="sig-name descname">priority</code><em class="property"> = 0</em><a class="headerlink" href="#pkgcheck.reporters.StrReporter.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt id="pkgcheck.reporters.XmlReporter">
+<em class="property">class </em><code class="sig-prename descclassname">pkgcheck.reporters.</code><code class="sig-name descname">XmlReporter</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">out</span></em>, <em class="sig-param"><span class="n">verbosity</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">keywords</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">exit_keywords</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/pkgcheck/reporters.html#XmlReporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pkgcheck.reporters.XmlReporter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pkgcheck.reporters.Reporter" title="pkgcheck.reporters.Reporter"><code class="xref py py-class docutils literal notranslate"><span class="pre">pkgcheck.reporters.Reporter</span></code></a></p>
+<p>Feed of newline-delimited XML reports.</p>
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.XmlReporter.cat_template">
+<code class="sig-name descname">cat_template</code><em class="property"> = '&lt;result&gt;&lt;category&gt;%(category)s&lt;/category&gt;&lt;class&gt;%(class)s&lt;/class&gt;&lt;msg&gt;%(msg)s&lt;/msg&gt;&lt;/result&gt;'</em><a class="headerlink" href="#pkgcheck.reporters.XmlReporter.cat_template" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.XmlReporter.pkg_template">
+<code class="sig-name descname">pkg_template</code><em class="property"> = '&lt;result&gt;&lt;category&gt;%(category)s&lt;/category&gt;&lt;package&gt;%(package)s&lt;/package&gt;&lt;class&gt;%(class)s&lt;/class&gt;&lt;msg&gt;%(msg)s&lt;/msg&gt;&lt;/result&gt;'</em><a class="headerlink" href="#pkgcheck.reporters.XmlReporter.pkg_template" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.XmlReporter.priority">
+<code class="sig-name descname">priority</code><em class="property"> = -1000</em><a class="headerlink" href="#pkgcheck.reporters.XmlReporter.priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.XmlReporter.result_template">
+<code class="sig-name descname">result_template</code><em class="property"> = '&lt;result&gt;&lt;class&gt;%(class)s&lt;/class&gt;&lt;msg&gt;%(msg)s&lt;/msg&gt;&lt;/result&gt;'</em><a class="headerlink" href="#pkgcheck.reporters.XmlReporter.result_template" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.XmlReporter.scope_map">
+<code class="sig-name descname">scope_map</code><em class="property"> = {&lt;Scope desc='category' &#64;0x7f15e2aa8cf8&gt;: '&lt;result&gt;&lt;category&gt;%(category)s&lt;/category&gt;&lt;class&gt;%(class)s&lt;/class&gt;&lt;msg&gt;%(msg)s&lt;/msg&gt;&lt;/result&gt;', &lt;Scope desc='package' &#64;0x7f15e2aa8d30&gt;: '&lt;result&gt;&lt;category&gt;%(category)s&lt;/category&gt;&lt;package&gt;%(package)s&lt;/package&gt;&lt;class&gt;%(class)s&lt;/class&gt;&lt;msg&gt;%(msg)s&lt;/msg&gt;&lt;/result&gt;', &lt;Scope desc='version' &#64;0x7f15e2aa8d68&gt;: '&lt;result&gt;&lt;category&gt;%(category)s&lt;/category&gt;&lt;package&gt;%(package)s&lt;/package&gt;&lt;version&gt;%(version)s&lt;/version&gt;&lt;class&gt;%(class)s&lt;/class&gt;&lt;msg&gt;%(msg)s&lt;/msg&gt;&lt;/result&gt;'}</em><a class="headerlink" href="#pkgcheck.reporters.XmlReporter.scope_map" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt id="pkgcheck.reporters.XmlReporter.ver_template">
+<code class="sig-name descname">ver_template</code><em class="property"> = '&lt;result&gt;&lt;category&gt;%(category)s&lt;/category&gt;&lt;package&gt;%(package)s&lt;/package&gt;&lt;version&gt;%(version)s&lt;/version&gt;&lt;class&gt;%(class)s&lt;/class&gt;&lt;msg&gt;%(msg)s&lt;/msg&gt;&lt;/result&gt;'</em><a class="headerlink" href="#pkgcheck.reporters.XmlReporter.ver_template" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/api/pkgcheck.reporters.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">pkgcheck master documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">pkgcheck.reporters module</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2006-2019, pkgcheck contributors.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.3.0.
+    </div>
+  </body>
+</html>
